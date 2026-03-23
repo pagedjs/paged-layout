@@ -66,6 +66,7 @@ class Layout {
 			this.hooks.afterOverflowAdded = new Hook();
 			this.hooks.onBreakToken = new Hook();
 			this.hooks.beforeRenderResult = new Hook();
+			this.hooks.onNamedPage = new Hook();
 		}
 
 		this.settings = options || {};
@@ -74,6 +75,10 @@ class Layout {
 		this.forceRenderBreak = false;
 
 		this.temporaryIndex = 0;
+	}
+
+	isContentBoundary(element) {
+		return element === this.element;
 	}
 
 	/**
@@ -160,13 +165,7 @@ class Layout {
 				}
 
 				if (!forcedBreakQueue.length && node.dataset && node.dataset.page) {
-					let named = node.dataset.page;
-					let page = this.element.closest(".pagedjs_page");
-					page.classList.add("pagejs_named_page");
-					page.classList.add("pagedjs_" + named + "_page");
-					if (!node.dataset.splitFrom) {
-						page.classList.add("pagedjs_" + named + "_first_page");
-					}
+					this.hooks.onNamedPage && this.hooks.onNamedPage.trigger(node, this.element);
 				}
 			}
 
@@ -843,7 +842,7 @@ class Layout {
 	 */
 	hasOverflow(element, bounds = this.bounds) {
 		let constrainingElement = element && element.parentNode; // this gets the element, instead of the wrapper for the width workaround
-		if (constrainingElement.classList.contains("pagedjs_page_content")) {
+		if (this.isContentBoundary(constrainingElement)) {
 			constrainingElement = element;
 		}
 		let { width, height } = element.getBoundingClientRect();
@@ -885,11 +884,7 @@ class Layout {
 		let result = {};
 		attribs.forEach((attrib) => (result[attrib] = 0));
 
-		while (
-			element &&
-			!element.classList.contains("pagedjs_page_content") &&
-			!element.classList.contains("pagedjs_footnote_inner_content")
-		) {
+		while (element && !this.isContentBoundary(element)) {
 			let style = window.getComputedStyle(element);
 			attribs.forEach((attrib) => (result[attrib] += parseInt(style[attrib])));
 			element = element.parentElement;
@@ -904,11 +899,7 @@ class Layout {
 	getAncestorTheadSizes(element) {
 		let result = 0;
 
-		while (
-			element &&
-			!element.classList.contains("pagedjs_page_content") &&
-			!element.classList.contains("pagedjs_footnote_inner_content")
-		) {
+		while (element && !this.isContentBoundary(element)) {
 			if (element.tagName == "TABLE") {
 				element.childNodes.forEach((node) => {
 					if (node.tagName == "THEAD") {
@@ -932,11 +923,7 @@ class Layout {
 	addTemporarySplit(element, isTo = true) {
 		this.temporaryIndex++;
 		let name = isTo ? "data-split-to" : "data-split-from";
-		while (
-			element &&
-			!element.classList.contains("pagedjs_page_content") &&
-			!element.classList.contains("pagedjs_footnote_inner_content")
-		) {
+		while (element && !this.isContentBoundary(element)) {
 			if (!element.getAttribute(name)) {
 				element.setAttribute(name, "temp-" + this.temporaryIndex);
 			}
@@ -955,11 +942,7 @@ class Layout {
 	 */
 	deleteTemporarySplit(element, isTo = true) {
 		let name = isTo ? "data-split-to" : "data-split-from";
-		while (
-			element &&
-			!element.classList.contains("pagedjs_page_content") &&
-			!element.classList.contains("pagedjs_footnote_inner_content")
-		) {
+		while (element && !this.isContentBoundary(element)) {
 			let value = element.getAttribute(name);
 			if (value == "temp-" + this.temporaryIndex) {
 				element.removeAttribute(name);
@@ -1056,25 +1039,23 @@ class Layout {
 		return result;
 	}
 
-	removeHeightConstraint(element) {
-		let pageBox = element.parentElement.closest(".pagedjs_page");
-		pageBox.style.setProperty("--pagedjs-pagebox-height", "5000px");
-		this.addTemporarySplit(element.parentElement, false);
-	}
-
-	restoreHeightConstraint(element) {
-		let pageBox = element.parentElement.closest(".pagedjs_page");
-		this.deleteTemporarySplit(element.parentElement, false);
-		pageBox.style.removeProperty("--pagedjs-pagebox-height");
-	}
-
 	getUnconstrainedElementHeight(
 		element,
 		includeAncestors = true,
 		includeTableHead = true,
 	) {
-		this.removeHeightConstraint(element);
-		let unconstrainedHeight = getBoundingClientRect(element).height;
+		// Create a hidden offscreen area matching the container width
+		let offscreen = document.createElement("div");
+		let containerWidth = this.element.getBoundingClientRect().width;
+		offscreen.style.cssText = `position:fixed;top:-10000px;left:-10000px;width:${containerWidth}px;height:auto;visibility:hidden;`;
+		document.body.appendChild(offscreen);
+
+		// Clone the element to measure without disturbing the live DOM
+		let clone = element.cloneNode(true);
+		this.addTemporarySplit(clone, false);
+		offscreen.appendChild(clone);
+
+		let unconstrainedHeight = getBoundingClientRect(clone).height;
 		if (includeAncestors) {
 			let extra = this.getAncestorPaddingBorderAndMarginSums(
 				element.parentElement,
@@ -1089,7 +1070,9 @@ class Layout {
 		if (includeTableHead) {
 			unconstrainedHeight += this.getAncestorTheadSizes(element.parentElement);
 		}
-		this.restoreHeightConstraint(element);
+
+		this.deleteTemporarySplit(clone, false);
+		offscreen.remove();
 		return unconstrainedHeight;
 	}
 
@@ -1554,12 +1537,7 @@ class Layout {
 				childNode.width = style.width;
 			});
 
-			if (
-				isElement(check) &&
-				Array.from(check.classList).filter((value) =>
-					["region-content", "pagedjs_page_content"].includes(value),
-				).length
-			) {
+			if (isElement(check) && this.isContentBoundary(check)) {
 				break;
 			}
 			check = check.parentElement;
@@ -1734,7 +1712,7 @@ class Layout {
 					/^\w|\u00AD$/.test(breakLetter)) ||
 				(!breakLetter && prevLetter && /^\w|\u00AD$/.test(prevLetter))
 			) {
-				startContainer.parentNode.classList.add("pagedjs_hyphen");
+				startContainer.parentNode.classList.add(this.settings.hyphenClass || "fragmentation_hyphen");
 				startContainer.textContent += this.settings.hyphenGlyph || "\u2011";
 			}
 		}
