@@ -27,7 +27,6 @@ export {
 	rebuildTableRow,
 	rebuildTree,
 	rebuildAncestors,
-	split,
 	needsBreakBefore,
 	needsBreakAfter,
 	needsPreviousBreakAfter,
