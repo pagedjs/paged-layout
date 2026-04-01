@@ -1,20 +1,14 @@
 {
-  "name": "@pagedjs/fragmenter",
+  "name": "@pagedjs/paged-layout",
   "version": "0.1.0",
   "type": "module",
-  "main": "dist/fragmenter.cjs",
-  "module": "dist/fragmenter.js",
-  "browser": "dist/fragmenter.umd.js",
+  "main": "./dist/paged-layout.js",
+  "module": "./dist/paged-layout.js",
   "exports": {
-    "import": "./dist/fragmenter.js",
-    "require": "./dist/fragmenter.cjs",
-    "browser": "./dist/fragmenter.umd.js",
-    "default": "./src/index.js"
+    "import": "./dist/paged-layout.js",
+    "default": "./dist/paged-layout.js"
   },
   "files": ["dist", "src"],
-  "dependencies": {
-    "event-emitter": "^0.3.5"
-  },
   "devDependencies": {
     "vite": "^6.x",
     "vitest": "^3.x",
