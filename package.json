@@ -2,11 +2,11 @@
   "name": "@pagedjs/paged-layout",
   "version": "0.1.0",
   "type": "module",
-  "main": "./dist/paged-layout.js",
-  "module": "./dist/paged-layout.js",
+  "main": "./src/index.js",
+  "module": "./src/index.js",
   "exports": {
-    "import": "./dist/paged-layout.js",
-    "default": "./dist/paged-layout.js"
+    "import": "./src/index.js",
+    "default": "./src/index.js"
   },
   "files": ["dist", "src"],
   "devDependencies": {
